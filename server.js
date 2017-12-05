@@ -2,178 +2,60 @@ const express = require('express')
 const app = express()
 const request = require('request')
 const Browser = require('zombie')
+const WooCommerceAPI = require('woocommerce-api')
 
-const csvFilePath = 'despacho.csv'
-const csv = require('csvtojson')
-var json2csv = require('json2csv');
-var fs = require('fs');
-var fields = ['zone', 'continent', 'country', 'state', 'postcode', 'class', 'weight', 'price', 'quantity', 'volume', 'cost', 'comment', 'active'];
+var async = require('async');
 
-var originArray = [];
+//zones= 21 -1529
+//methods 27 - 1615
 
-var result = [];
-
-csv()
-  .fromFile(csvFilePath)
-  .on('json', (jsonObj) => {
-    originArray.push(jsonObj);
-  })
-  .on('end', (endObj) => {
-    startProcess();
-  })
+var data = {
+  settings: {
+    'tax_status': 'none',
+    'weight_type': 'greater',
+    'price_type': 'excl',
+    'calculation_type': 'line'
+  }
+};
 
 
-function startProcess() {
+var WooCommerce = new WooCommerceAPI({
+  url: 'http://52.201.187.33',
+  consumerKey: '',
+  consumerSecret: '',
+  wpAPI: true,
+  version: 'wc/v2'
+});
 
-  var idx = 0;
-  var tempSet = [];
-
-  for (var i = 0; i < originArray.length; i++) {
-    idx++;
-    tempSet.push(originArray[i]);
-    if (idx == 15) {
-      console.log("end first set");
-      configureSet(tempSet);
-      idx = 0;
-      tempSet = [];
-    }
-
+WooCommerce.get('shipping/zones', function(err, data, res) {
+  var shippingArrayID = []
+  var obj = JSON.parse(res);
+  for (var key in obj) {
+    shippingArrayID.push(obj[key]["id"]);
   }
 
-  console.log(result);
-  generateCSV(result)
 
-}
-
-function configureSet(tempSet) {
-  //  console.log(tempSet);
-
-  var zoneName = tempSet[0]["Nombre Comuna"];
-  var first = true;
-
-  for (var i = 0; i < tempSet.length; i++) {
-    var objResult = {};
-    if (first) {
-      objResult.zone = zoneName;
-      first = false;
-    }
-    objResult.weight = tempSet[i]["Pmin"].replace(",", ".") + "-" + tempSet[i]["Pmax"].replace(",", ".");
-    objResult.cost = tempSet[i]["Valor"];
-    objResult.state = "CL:" + tempSet[i]["numberID"];
-    objResult.active = 1;
-    result.push(objResult);
-  }
-}
-
-function generateCSV(data) {
-
-  var csv = json2csv({
-    data: data,
-    fields: fields,
-    del: ','
-  });
-
-  fs.writeFile('file.csv', csv, function(err) {
-    if (err) throw err;
-    console.log('file saved');
-  });
-
-
-}
-
-
-function init() {
-
-  var jsonDataObj = {
-    "changes[zone_locations][]": "state:CL:446",
-    "changes[zone_name]": "TEST1",
-    "wc_shipping_zones_nonce": "70530c4ed4",
-    "zone_id": ""
-  };
-
-  var options = {
-    url: 'http://52.201.187.33/wp-admin/admin-ajax.php?action=woocommerce_shipping_zone_methods_save_changes',
-    form: jsonDataObj,
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      'Cookie': cookie
-    },
-    json: true,
-    method: 'POST'
-  };
-
-  request(options, function(error, response, body) {
-    console.log('error:', error); // Print the error if one occurred
-    console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
-    console.log('body:', body); // Print the HTML for the Google homepage.
-
-
-    addShippingMethod(body.data.zone_id);
-  });
-
-}
-
-function addShippingMethod(zoneID) {
-
-  var jsonDataObj = {
-    "method_id": "betrs_shipping",
-    "wc_shipping_zones_nonce": "wasdsadas",
-    "wc_shipping_zones_nonce": "70530c4ed4",
-    "zone_id": zoneID
-  };
-
-  var options = {
-    url: 'http://52.201.187.33/wp-admin/admin-ajax.php?action=woocommerce_shipping_zone_add_method',
-    form: jsonDataObj,
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      'Cookie': cookie
-    },
-    json: true,
-    method: 'POST'
-  };
-
-
-  request(options, function(error, response, body) {
-    console.log('error:', error); // Print the error if one occurred
-    console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
-    console.log('body:', body); // Print the HTML for the Google homepage.
-
-    //  editShippingMethod(zoneID, body.data.instance_id);
+  async.eachSeries(shippingArrayID, function(data, callback) {
+    WooCommerce.delete('shipping/zones/' + data + '?force=true', function(err, data, res) {
+      console.log(res);
+      callback(null);
+    });
 
   });
 
-}
+});
 
 
 
 
-function editShippingMethod(zoneID, instanceID) {
+//WooCommerce.get('shipping/zones/21/methods/27', function(err, data, res) {
+//  console.log(res);
+//});
 
-  var jsonDataObj = '';
+//WooCommerce.put('shipping/zones/21/methods/27', data, function(err, data, res) {
+//  console.log(res);
+//});
 
-  var options = {
-    url: 'http://52.201.187.33/wp-admin/admin.php?page=wc-settings&tab=shipping&instance_id=' + instanceID,
-    body: jsonDataObj,
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      'Cookie': cookie
-    },
-    json: true,
-    method: 'POST'
-  };
-
-
-  request(options, function(error, response, body) {
-    console.log('error:', error); // Print the error if one occurred
-    console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
-    console.log('body:', body); // Print the HTML for the Google homepage.
-
-
-
-  });
-
-
-
-
-}
+//WooCommerce.delete('shipping/zones/21?force=true', function(err, data, res) {
+//  console.log(res);
+//});

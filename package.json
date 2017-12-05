@@ -5,6 +5,7 @@
   "author": "gvelasquez760",
   "description": "WP Loader Test",
   "dependencies": {
+    "async": "^2.6.0",
     "csvtojson": "^1.1.9",
     "express": "^4.16.2",
     "json2csv": "^3.11.5",
